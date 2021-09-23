@@ -1,6 +1,5 @@
 package dev.dokup.mediastoresample.repository
 
-import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
@@ -11,6 +10,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import androidx.annotation.RequiresApi
 import dev.dokup.mediastoresample.entity.ImageEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -130,32 +130,76 @@ class MediaRepository{
         }
 
         return withContext(Dispatchers.IO) {
-            val externalFilesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-            val imageFile = File(externalFilesDir, format.fileName)
-            val uri = Uri.fromFile(imageFile)
-
-            val result = saveToFile(
-                context = context,
-                bitmap = bitmap,
-                uri = uri,
-                format = format.compressFormat
-            )
-
-            if (result) {
-                val path = arrayOf(uri.toString())
-                MediaScannerConnection.scanFile(
-                    context,
-                    path,
-                    null
-                ) { resultPath, resultUri ->
-                    Log.d("cropscan", "Success to scan: $resultPath as $resultUri")
-                }
-                return@withContext Uri.fromFile(imageFile)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                saveFile(context, bitmap, format, mimeType)
             } else {
-                throw IOException("Failed file saving: $uri")
+                saveFileLegacy(context, bitmap, format)
             }
         }
     }
+
+    private fun saveFileLegacy(
+        context: Context,
+        bitmap: Bitmap,
+        format: ImageFileFormat
+    ): Uri {
+        val externalFilesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        val imageFile = File(externalFilesDir, format.fileName)
+        val uri = Uri.fromFile(imageFile)
+
+        val result = compressBitmap(
+            context = context,
+            bitmap = bitmap,
+            uri = uri,
+            format = format.compressFormat
+        )
+
+        if (result) {
+            val path = arrayOf(uri.toString())
+            MediaScannerConnection.scanFile(
+                context,
+                path,
+                null
+            ) { resultPath, resultUri ->
+                Log.d("cropscan", "Success to scan: $resultPath as $resultUri")
+            }
+            return Uri.fromFile(imageFile)
+        } else {
+            throw IOException("Failed file saving: $uri")
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveFile(
+        context: Context,
+        bitmap: Bitmap,
+        format: ImageFileFormat,
+        mimeType: String
+    ): Uri {
+        val contentResolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, format.fileName)
+            put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+
+        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val uri = contentResolver.insert(collection, values)!!
+
+        compressBitmap(
+            context = context,
+            bitmap = bitmap,
+            uri = uri,
+            format = format.compressFormat
+        )
+
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        contentResolver.update(uri, values, null, null)
+        return uri
+    }
+
+
 
 //    private fun insertToMediaStore(context: Context, uri: Uri): Uri {
 //        val contentResolver = context.contentResolver
@@ -175,7 +219,7 @@ class MediaRepository{
         return "IMG_$date"
     }
 
-    private fun saveToFile(
+    private fun compressBitmap(
         context: Context,
         bitmap: Bitmap?,
         uri: Uri?,
