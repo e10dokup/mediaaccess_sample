@@ -199,21 +199,6 @@ class MediaRepository{
         return uri
     }
 
-
-
-//    private fun insertToMediaStore(context: Context, uri: Uri): Uri {
-//        val contentResolver = context.contentResolver
-//        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-//            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-//        } else {
-//            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-//        }
-//
-//        val newImageDetails = ContentValues().apply {
-//            put(MediaStore.Images.Media.DISPLAY_NAME, "My Song.mp3")
-//        }
-//    }
-
     private fun createRandomFileName(): String {
         val date = SimpleDateFormat("yyyyMMdd_HHmmssSSS").format(Date())
         return "IMG_$date"
