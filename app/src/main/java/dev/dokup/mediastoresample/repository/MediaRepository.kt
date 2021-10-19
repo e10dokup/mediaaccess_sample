@@ -107,7 +107,11 @@ class MediaRepository{
                 }
                 it.moveToFirst()
                 val mimeTypeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
-                return@withContext it.getString(mimeTypeColumn)
+                return@withContext try {
+                    it.getString(mimeTypeColumn)
+                } catch (t: Throwable) {
+                    MIME_JPEG
+                }
             }
         }
     }
